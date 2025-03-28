@@ -1,15 +1,36 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { auth } from "./firebase";
 import Chat from "./components/Chat";
-import Login from "./components/Login";
+import Auth from "./components/Auth";
 
 function App() {
   const [user, setUser] = useState(null);
   const [darkMode, setDarkMode] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+      if (currentUser) {
+        setUser({
+          id: currentUser.uid,
+          name: currentUser.displayName || currentUser.email.split("@")[0],
+          email: currentUser.email,
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.email}`,
+          status: "online",
+        });
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    // Cleanup subscription
+    return () => unsubscribe();
+  }, []);
 
   const handleLogin = (userData) => {
-    // Simulate login without backend
     setUser({
-      id: Math.random().toString(36).substring(2, 9),
+      id: auth.currentUser.uid,
       name: userData.name || userData.email.split("@")[0],
       email: userData.email,
       avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.email}`,
@@ -18,12 +39,17 @@ function App() {
   };
 
   const handleLogout = () => {
+    auth.signOut();
     setUser(null);
   };
 
   const toggleTheme = () => {
     setDarkMode(!darkMode);
   };
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div
@@ -32,7 +58,7 @@ function App() {
       }`}
     >
       {!user ? (
-        <Login
+        <Auth
           onLogin={handleLogin}
           darkMode={darkMode}
           toggleTheme={toggleTheme}

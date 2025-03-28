@@ -1,4 +1,5 @@
-import React from "react";
+/* eslint-disable no-unused-vars */
+import React, { useEffect } from "react";
 
 function MessageList({ messages, user, contact, darkMode, messagesEndRef }) {
   // Format timestamp for messages
@@ -7,8 +8,13 @@ function MessageList({ messages, user, contact, darkMode, messagesEndRef }) {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  // Group messages by date
-  const groupedMessages = messages.reduce((groups, message) => {
+  // Sort messages by timestamp
+  const sortedMessages = [...messages].sort(
+    (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+  );
+
+  // Group sorted messages by date
+  const groupedMessages = sortedMessages.reduce((groups, message) => {
     const date = new Date(message.timestamp).toLocaleDateString();
     if (!groups[date]) {
       groups[date] = [];
@@ -17,9 +23,16 @@ function MessageList({ messages, user, contact, darkMode, messagesEndRef }) {
     return groups;
   }, {});
 
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
+
   return (
     <div
-      className={`flex-1 p-4 overflow-y-auto ${
+      className={`flex-1 p-4 overflow-y-auto relative ${
         darkMode ? "bg-[#4C4C4C]" : "bg-[#D1D1D1]"
       }`}
     >
@@ -37,8 +50,19 @@ function MessageList({ messages, user, contact, darkMode, messagesEndRef }) {
             </div>
           </div>
 
-          {groupedMessages[date].map((message) => {
+          {groupedMessages[date].map((message, index, array) => {
             const isUserMessage = message.sender === user.id;
+            const prevMessage = index > 0 ? array[index - 1] : null;
+            const nextMessage =
+              index < array.length - 1 ? array[index + 1] : null;
+
+            // Determine if we should show the avatar based on message sequence
+            const showAvatar =
+              !prevMessage ||
+              prevMessage.sender !== message.sender ||
+              // Show avatar if there's a significant time gap
+              new Date(message.timestamp) - new Date(prevMessage.timestamp) >
+                5 * 60 * 1000;
 
             return (
               <div
@@ -47,12 +71,16 @@ function MessageList({ messages, user, contact, darkMode, messagesEndRef }) {
                   isUserMessage ? "justify-end" : "justify-start"
                 }`}
               >
-                {!isUserMessage && (
+                {!isUserMessage && showAvatar && (
                   <img
-                    src={contact.avatar}
-                    alt={contact.name}
+                    src={contact?.avatar}
+                    alt={contact?.name}
                     className="w-8 h-8 rounded-full mr-2 self-end"
                   />
+                )}
+
+                {!isUserMessage && !showAvatar && (
+                  <div className="w-8 mr-2"></div>
                 )}
 
                 <div className="max-w-xs md:max-w-md">
@@ -63,6 +91,13 @@ function MessageList({ messages, user, contact, darkMode, messagesEndRef }) {
                         : darkMode
                         ? "bg-[#636363] text-white rounded-bl-none"
                         : "bg-white text-gray-800 rounded-bl-none"
+                    } ${
+                      // Adjust rounded corners based on message sequence
+                      !prevMessage || prevMessage.sender !== message.sender
+                        ? isUserMessage
+                          ? "rounded-br-none"
+                          : "rounded-bl-none"
+                        : ""
                     }`}
                   >
                     {message.content}
@@ -91,19 +126,23 @@ function MessageList({ messages, user, contact, darkMode, messagesEndRef }) {
                   </div>
                 </div>
 
-                {isUserMessage && (
+                {isUserMessage && showAvatar && (
                   <img
                     src={user.avatar}
                     alt={user.name}
                     className="w-8 h-8 rounded-full ml-2 self-end"
                   />
                 )}
+
+                {isUserMessage && !showAvatar && (
+                  <div className="w-8 ml-2"></div>
+                )}
               </div>
             );
           })}
         </div>
       ))}
-      <div ref={messagesEndRef} />
+      <div ref={messagesEndRef} className="h-0" />
     </div>
   );
 }

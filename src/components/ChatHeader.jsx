@@ -8,7 +8,11 @@ import {
 } from "react-icons/fa";
 
 function ChatHeader({ contact, toggleMobileMenu, darkMode }) {
-  if (!contact) return null;
+  // Add more robust checking
+  if (!contact) {
+    console.warn("No contact information available");
+    return null;
+  }
 
   return (
     <div
@@ -27,7 +31,7 @@ function ChatHeader({ contact, toggleMobileMenu, darkMode }) {
         <div className="relative mr-3">
           <img
             src={contact.avatar}
-            alt={contact.name}
+            alt={contact.name || "User"}
             className="w-10 h-10 rounded-full object-cover"
           />
           {contact.status === "online" && (
@@ -36,10 +40,12 @@ function ChatHeader({ contact, toggleMobileMenu, darkMode }) {
         </div>
 
         <div>
-          <div className="font-semibold">{contact.name}</div>
+          <div className="font-semibold">
+            {contact.name || "Unknown Contact"}
+          </div>
           <div className="text-xs text-green-500">
             {contact.status === "online" ? "Online" : "Offline"}
-            {contact.isGroup && ` • ${contact.members.length} members`}
+            {contact.isGroup && ` • ${contact.members?.length || 0} members`}
           </div>
         </div>
       </div>
