@@ -1,22 +1,23 @@
 /* eslint-disable no-unused-vars */
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  increment,
+  onSnapshot,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+  writeBatch,
+} from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
+import { db } from "../firebase";
 import ChatHeader from "./ChatHeader";
 import MessageInput from "./MessageInput";
 import MessageList from "./MessageList";
 import Sidebar from "./Sidebar";
-import {
-  collection,
-  getDocs,
-  doc,
-  setDoc,
-  onSnapshot,
-  updateDoc,
-  query,
-  where,
-  getDoc,
-} from "firebase/firestore";
-import { db } from "../firebase";
-import { increment } from "firebase/firestore";
 
 function Chat({ user, onLogout, darkMode, toggleTheme }) {
   const [contacts, setContacts] = useState([]);
@@ -27,7 +28,82 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
   const [registeredUsers, setRegisteredUsers] = useState([]);
   const [chatId, setChatId] = useState(null);
   const [activeChatDetails, setActiveChatDetails] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
 
+  const searchMessages = async (query) => {
+    if (!query.trim() || !chatId) return;
+
+    setIsSearching(true);
+    try {
+      const messagesRef = collection(db, "chats", chatId, "messages");
+      const q = query(
+        messagesRef,
+        where("content", ">=", query),
+        where("content", "<=", query + "\uf8ff")
+      );
+
+      const querySnapshot = await getDocs(q);
+      const results = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      setSearchResults(results);
+
+      // Scroll to first result if any
+      if (results.length > 0) {
+        const messageElement = document.getElementById(
+          `message-${results[0].id}`
+        );
+        if (messageElement) {
+          messageElement.scrollIntoView({ behavior: "smooth" });
+          messageElement.classList.add("bg-yellow-100");
+          setTimeout(() => {
+            messageElement.classList.remove("bg-yellow-100");
+          }, 2000);
+        }
+      }
+    } catch (error) {
+      console.error("Error searching messages:", error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Add this function to delete a conversation
+  const deleteConversation = async () => {
+    if (!chatId) return;
+
+    try {
+      // First delete all messages in the chat
+      const messagesRef = collection(db, "chats", chatId, "messages");
+      const messagesSnapshot = await getDocs(messagesRef);
+
+      const batch = writeBatch(db);
+      messagesSnapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+
+      // Delete the chat document
+      const chatRef = doc(db, "chats", chatId);
+      batch.delete(chatRef);
+
+      await batch.commit();
+
+      // Reset states
+      setActiveChat(null);
+      setChatId(null);
+      setMessages([]);
+      setActiveChatDetails(null);
+
+      // Refresh contacts list
+      fetchUserChats();
+    } catch (error) {
+      console.error("Error deleting conversation:", error);
+    }
+  };
   const checkUserExists = async (userId) => {
     try {
       const userDoc = await getDoc(doc(db, "users", userId));
@@ -425,6 +501,8 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
               }
               toggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               darkMode={darkMode}
+              onSearchMessage={searchMessages}
+              onDeleteConversation={deleteConversation}
             />
 
             <MessageList
