@@ -73,7 +73,10 @@ function MessageList({ messages, user, contact, darkMode, messagesEndRef }) {
               >
                 {!isUserMessage && showAvatar && (
                   <img
-                    src={contact?.avatar}
+                    src={
+                      contact?.avatar ||
+                      "https://dummyimage.com/150x150/cccccc/000000&text=150x150"
+                    }
                     alt={contact?.name}
                     className="w-8 h-8 rounded-full mr-2 self-end"
                   />
@@ -128,7 +131,10 @@ function MessageList({ messages, user, contact, darkMode, messagesEndRef }) {
 
                 {isUserMessage && showAvatar && (
                   <img
-                    src={user.avatar}
+                    src={
+                      user.avatar ||
+                      "https://dummyimage.com/150x150/cccccc/000000&text=150x150"
+                    }
                     alt={user.name}
                     className="w-8 h-8 rounded-full ml-2 self-end"
                   />

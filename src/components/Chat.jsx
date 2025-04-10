@@ -28,10 +28,9 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
   const [registeredUsers, setRegisteredUsers] = useState([]);
   const [chatId, setChatId] = useState(null);
   const [activeChatDetails, setActiveChatDetails] = useState(null);
-  const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
-
+  const [onlineUsers, setOnlineUsers] = useState({});
   const searchMessages = async (query) => {
     if (!query.trim() || !chatId) return;
 
@@ -71,6 +70,30 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
       setIsSearching(false);
     }
   };
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const usersRef = collection(db, "users");
+    const unsubscribe = onSnapshot(usersRef, (snapshot) => {
+      const onlineUsersMap = {};
+
+      snapshot.docs.forEach((doc) => {
+        const userData = doc.data();
+        // User is online if status is online and last active within 5 minutes
+        const isOnline =
+          userData.status === "online" &&
+          userData.lastActive &&
+          new Date() - new Date(userData.lastActive.toDate()) < 300000;
+
+        onlineUsersMap[doc.id] = isOnline;
+      });
+
+      setOnlineUsers(onlineUsersMap);
+    });
+
+    return () => unsubscribe();
+  }, [user?.id]);
 
   // Add this function to delete a conversation
   const deleteConversation = async () => {
@@ -491,11 +514,12 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
         {activeChat ? (
           <>
             <ChatHeader
+              onlineUsers={onlineUsers}
               contact={
                 activeChatDetails || {
                   id: activeChat,
                   name: activeChat,
-                  avatar: "", // default avatar
+                  avatar: "",
                   status: "offline",
                 }
               }

@@ -11,6 +11,7 @@ import {
 
 function ChatHeader({
   contact,
+  onlineUsers,
   toggleMobileMenu,
   darkMode,
   onSearchMessage,
@@ -43,11 +44,44 @@ function ChatHeader({
     }
   }, [showSearchBar]);
 
-  // Add more robust checking
-  if (!contact) {
-    console.warn("No contact information available");
-    return null;
-  }
+  const isContactOnline = () => {
+    if (!contact?.id) return false;
+
+    // First check the real-time onlineUsers state if available
+    if (onlineUsers && onlineUsers[contact.id] !== undefined) {
+      return onlineUsers[contact.id];
+    }
+
+    // Fallback to contact's own status if onlineUsers not available
+    return (
+      contact.status === "online" &&
+      contact.lastActive &&
+      new Date() - new Date(contact.lastActive.toDate()) < 300000
+    );
+  };
+  const getStatusDisplay = () => {
+    if (!contact) return "Offline";
+
+    if (isContactOnline()) return "Online";
+
+    // Handle offline status with last seen time if available
+    if (contact.lastActive) {
+      const lastActiveDate =
+        typeof contact.lastActive.toDate === "function"
+          ? contact.lastActive.toDate()
+          : new Date(contact.lastActive);
+
+      const diffMinutes = Math.floor(
+        (new Date() - lastActiveDate) / (1000 * 60)
+      );
+
+      if (diffMinutes < 60) return `${diffMinutes}m ago`;
+      if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+      return `${Math.floor(diffMinutes / 1440)}d ago`;
+    }
+
+    return "Offline";
+  };
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -68,6 +102,12 @@ function ChatHeader({
     setShowDeleteConfirm(false);
   };
 
+  // Add more robust checking
+  if (!contact) {
+    console.warn("No contact information available");
+    return null;
+  }
+
   return (
     <div
       className={`p-4 flex items-center justify-between border-b ${
@@ -84,11 +124,14 @@ function ChatHeader({
 
         <div className="relative mr-3">
           <img
-            src={contact.avatar}
+            src={
+              contact.avatar ||
+              "https://dummyimage.com/150x150/cccccc/000000&text=150x150"
+            }
             alt={contact.name || "User"}
             className="w-10 h-10 rounded-full object-cover"
           />
-          {contact.status === "online" && (
+          {isContactOnline() && (
             <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
           )}
         </div>
@@ -97,8 +140,12 @@ function ChatHeader({
           <div className="font-semibold">
             {contact.name || "Unknown Contact"}
           </div>
-          <div className="text-xs text-green-500">
-            {contact.status === "online" ? "Online" : "Offline"}
+          <div
+            className={`text-xs ${
+              isContactOnline() ? "text-green-500" : "text-gray-500"
+            }`}
+          >
+            {getStatusDisplay()}
             {contact.isGroup && ` • ${contact.members?.length || 0} members`}
           </div>
         </div>
