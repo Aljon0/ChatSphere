@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FaGoogle, FaMoon, FaSun } from "react-icons/fa";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 import {
   auth,
   signInWithEmailAndPassword,
   googleProvider,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
 } from "../firebase";
 import Toast from "./Toast";
 
@@ -12,6 +14,36 @@ function Login({ onLogin, darkMode, toggleTheme, switchToSignUp }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [toast, setToast] = useState(null);
+  const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Handle redirect result on component mount
+  useEffect(() => {
+    async function checkRedirectResult() {
+      try {
+        const result = await getRedirectResult(auth);
+
+        if (result && result.user) {
+          const user = result.user;
+          onLogin({
+            id: user.uid,
+            email: user.email,
+            name: user.displayName || user.email.split("@")[0],
+          });
+        }
+      } catch (err) {
+        console.error("Google redirect error:", err);
+        setToast({
+          type: "error",
+          message: "Failed to sign in with Google. Please try again.",
+        });
+      } finally {
+        setIsProcessingRedirect(false);
+      }
+    }
+
+    checkRedirectResult();
+  }, [onLogin]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -24,12 +56,11 @@ function Login({ onLogin, darkMode, toggleTheme, switchToSignUp }) {
       );
       const user = userCredential.user;
       onLogin({
+        id: user.uid,
         email: user.email,
         name: user.displayName || user.email.split("@")[0],
       });
     } catch (err) {
-      console.error("Login error:", err);
-
       // Comprehensive error mapping
       const errorMap = {
         "auth/invalid-credential":
@@ -53,36 +84,28 @@ function Login({ onLogin, darkMode, toggleTheme, switchToSignUp }) {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      onLogin({
-        email: user.email,
-        name: user.displayName || user.email.split("@")[0],
-      });
-    } catch (err) {
-      console.error("Google login error:", err);
-
-      // Google Sign-In specific error mapping
-      const errorMap = {
-        "auth/account-exists-with-different-credential":
-          "An account already exists with a different login method.",
-        "auth/popup-blocked":
-          "Login popup was blocked. Please allow popups and try again.",
-        "auth/popup-closed-by-user":
-          "Login popup was closed before completion.",
-        default: "Google sign-in failed. Please try again.",
-      };
-
-      const errorMessage = errorMap[err.code] || errorMap["default"];
-
+  const handleGoogleLogin = () => {
+    // Use redirect instead of popup
+    signInWithRedirect(auth, googleProvider).catch((err) => {
+      console.error("Google redirect initiation error:", err);
       setToast({
         type: "error",
-        message: errorMessage,
+        message: "Failed to start Google sign-in process. Please try again.",
       });
-    }
+    });
   };
+
+  // Show a loading state while checking redirect result
+  if (isProcessingRedirect) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen p-4">
@@ -100,6 +123,7 @@ function Login({ onLogin, darkMode, toggleTheme, switchToSignUp }) {
           darkMode ? "bg-[#636363]" : "bg-white"
         }`}
       >
+        {/* Rest of your component remains the same */}
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold flex items-center">
             <span className="text-[#85C7F2] mr-2">Chat</span>Sphere
@@ -138,26 +162,39 @@ function Login({ onLogin, darkMode, toggleTheme, switchToSignUp }) {
             />
           </div>
 
-          <div className="mb-6">
+          <div className="mb-6 relative">
             <label
               className="block text-sm font-medium mb-2"
               htmlFor="password"
             >
               Password
             </label>
-            <input
-              id="password"
-              type="password"
-              className={`w-full px-4 py-2 rounded-lg border ${
-                darkMode
-                  ? "bg-[#4C4C4C] border-gray-600"
-                  : "bg-[#DBDBDB] border-gray-300"
-              }`}
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                className={`w-full px-4 py-2 rounded-lg border ${
+                  darkMode
+                    ? "bg-[#4C4C4C] border-gray-600"
+                    : "bg-[#DBDBDB] border-gray-300"
+                }`}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? (
+                  <FaEyeSlash className="text-gray-500" />
+                ) : (
+                  <FaEye className="text-gray-500" />
+                )}
+              </button>
+            </div>
           </div>
 
           <button

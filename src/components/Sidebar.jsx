@@ -1,12 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  FaMoon,
-  FaPlus,
-  FaSearch,
-  FaSignOutAlt,
-  FaSun,
-  FaUserFriends,
-} from "react-icons/fa";
+import { FaMoon, FaPlus, FaSearch, FaSignOutAlt, FaSun } from "react-icons/fa";
 import {
   collection,
   query,
@@ -113,11 +106,13 @@ function Sidebar({
     };
   }, [user?.id]);
 
-  // Filter and sort contacts
+  // Filter and sort contacts - FIXED ERROR HERE
   useEffect(() => {
     const filtered = contacts
       .filter((contact) => {
-        const matchesSearch = contact.name
+        // Add null check for contact.name to prevent the error
+        const contactName = contact.name || "";
+        const matchesSearch = contactName
           .toLowerCase()
           .includes(searchTerm.toLowerCase());
         const matchesOnlineFilter = showOnlineOnly
@@ -142,7 +137,7 @@ function Sidebar({
     setFilteredContacts(filtered);
   }, [contacts, searchTerm, showOnlineOnly, onlineUsers, lastSeen]);
 
-  // Filter registered users
+  // Filter registered users - FIXED ERROR HERE TOO
   useEffect(() => {
     if (searchTerm.trim() === "") {
       setSearchRegisteredUsers([]);
@@ -150,9 +145,9 @@ function Sidebar({
     }
 
     const filtered = allUsers.filter((registeredUser) => {
-      const isMatch = registeredUser.name
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
+      // Add null check for registeredUser.name
+      const userName = registeredUser.name || "";
+      const isMatch = userName.toLowerCase().includes(searchTerm.toLowerCase());
       const isNotCurrentUser = registeredUser.id !== user.id;
       const isNotInContacts = !contacts.some(
         (contact) => contact.id === registeredUser.id
@@ -220,7 +215,7 @@ function Sidebar({
         const newContact = {
           id: userId,
           chatId: newChatRef.id,
-          name: userData.name,
+          name: userData.name || "Unknown User", // Added fallback here
           avatar: userData.avatar,
           status: onlineUsers[userId] ? "online" : "offline",
           lastMessage: "No messages yet",
@@ -416,7 +411,7 @@ function Sidebar({
                   <div className="relative mr-3">
                     <img
                       src={contact.avatar || "https://via.placeholder.com/150"}
-                      alt={contact.name}
+                      alt={contact.name || "User"} // Added fallback here
                       className="w-12 h-12 rounded-full object-cover"
                     />
                     {isUserOnline(contact.id) && (
@@ -431,7 +426,10 @@ function Sidebar({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between">
-                      <h4 className="font-semibold truncate">{contact.name}</h4>
+                      <h4 className="font-semibold truncate">
+                        {contact.name || "Unknown User"}
+                      </h4>{" "}
+                      {/* Added fallback here */}
                       <span
                         className={`text-xs ${
                           activeChat === contact.id
@@ -485,7 +483,7 @@ function Sidebar({
                         registeredUser.avatar ||
                         "https://via.placeholder.com/150"
                       }
-                      alt={registeredUser.name}
+                      alt={registeredUser.name || "User"} // Added fallback here
                       className="w-12 h-12 rounded-full object-cover"
                     />
                     {isUserOnline(registeredUser.id) && (
@@ -494,7 +492,8 @@ function Sidebar({
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="font-semibold truncate">
-                      {registeredUser.name}
+                      {registeredUser.name || "Unknown User"}{" "}
+                      {/* Added fallback here */}
                     </h4>
                     <p
                       className={`text-sm truncate ${

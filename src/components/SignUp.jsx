@@ -1,24 +1,63 @@
-/* eslint-disable no-unused-vars */
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FaGoogle, FaMoon, FaSun } from "react-icons/fa";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 import {
   auth,
   createUserWithEmailAndPassword,
   googleProvider,
-  signInWithPopup,
-  db, // Make sure to import Firestore
+  signInWithRedirect,
+  getRedirectResult,
+  db,
 } from "../firebase";
 import { updateProfile } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import Toast from "./Toast";
 
-function SignUp({ darkMode, toggleTheme, switchToSignIn }) {
+function SignUp({ onLogin, darkMode, toggleTheme, switchToSignIn }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
   const [toast, setToast] = useState(null);
-  const [error, setError] = useState("");
+  const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Handle redirect result on component mount
+  useEffect(() => {
+    async function checkRedirectResult() {
+      try {
+        const result = await getRedirectResult(auth);
+
+        if (result && result.user) {
+          const user = result.user;
+
+          // Create user document in Firestore
+          await createUserDocument(user);
+
+          // Important: Call onLogin to update auth state in parent component
+          onLogin({
+            id: user.uid,
+            email: user.email,
+            name: user.displayName || user.email.split("@")[0],
+          });
+
+          // No need to display success message or switch to sign in
+          // since onLogin will handle navigation
+        }
+      } catch (err) {
+        console.error("Google redirect error:", err);
+        setToast({
+          type: "error",
+          message: "Failed to sign up with Google. Please try again.",
+        });
+      } finally {
+        setIsProcessingRedirect(false);
+      }
+    }
+
+    checkRedirectResult();
+  }, [onLogin]);
 
   // Function to create user document in Firestore
   const createUserDocument = async (user, additionalData = {}) => {
@@ -124,45 +163,28 @@ function SignUp({ darkMode, toggleTheme, switchToSignIn }) {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-
-      // Create user document in Firestore
-      await createUserDocument(user);
-
-      setToast({
-        type: "success",
-        message: "Signed up successfully with Google!",
-      });
-
-      // Reset form and switch to login after a short delay
-      setTimeout(() => {
-        switchToSignIn();
-      }, 2000);
-    } catch (err) {
-      console.error("Google signup error:", err);
-
-      // Google Sign-Up specific error mapping
-      const errorMap = {
-        "auth/account-exists-with-different-credential":
-          "An account already exists with a different login method.",
-        "auth/popup-blocked":
-          "Signup popup was blocked. Please allow popups and try again.",
-        "auth/popup-closed-by-user":
-          "Signup popup was closed before completion.",
-        default: "Google sign-up failed. Please try again.",
-      };
-
-      const errorMessage = errorMap[err.code] || errorMap["default"];
-
+  const handleGoogleSignUp = () => {
+    // Use redirect instead of popup
+    signInWithRedirect(auth, googleProvider).catch((err) => {
+      console.error("Google redirect initiation error:", err);
       setToast({
         type: "error",
-        message: errorMessage,
+        message: "Failed to start Google sign-up process. Please try again.",
       });
-    }
+    });
   };
+
+  // Show a loading state while checking redirect result
+  if (isProcessingRedirect) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen p-4">
@@ -196,12 +218,6 @@ function SignUp({ darkMode, toggleTheme, switchToSignIn }) {
         </div>
 
         <h3 className="text-xl font-semibold mb-6">Create an Account</h3>
-
-        {error && (
-          <div className="mb-4 p-2 bg-red-100 text-red-700 rounded">
-            {error}
-          </div>
-        )}
 
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
@@ -242,49 +258,75 @@ function SignUp({ darkMode, toggleTheme, switchToSignIn }) {
             />
           </div>
 
-          <div className="mb-4">
+          <div className="mb-4 relative">
             <label
               className="block text-sm font-medium mb-2"
               htmlFor="password"
             >
               Password
             </label>
-            <input
-              id="password"
-              type="password"
-              className={`w-full px-4 py-2 rounded-lg border ${
-                darkMode
-                  ? "bg-[#4C4C4C] border-gray-600"
-                  : "bg-[#DBDBDB] border-gray-300"
-              }`}
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength="6"
-            />
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                className={`w-full px-4 py-2 rounded-lg border ${
+                  darkMode
+                    ? "bg-[#4C4C4C] border-gray-600"
+                    : "bg-[#DBDBDB] border-gray-300"
+                }`}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength="6"
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? (
+                  <FaEyeSlash className="text-gray-500" />
+                ) : (
+                  <FaEye className="text-gray-500" />
+                )}
+              </button>
+            </div>
           </div>
 
-          <div className="mb-6">
+          <div className="mb-6 relative">
             <label
               className="block text-sm font-medium mb-2"
               htmlFor="confirmPassword"
             >
               Confirm Password
             </label>
-            <input
-              id="confirmPassword"
-              type="password"
-              className={`w-full px-4 py-2 rounded-lg border ${
-                darkMode
-                  ? "bg-[#4C4C4C] border-gray-600"
-                  : "bg-[#DBDBDB] border-gray-300"
-              }`}
-              placeholder="••••••••"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-            />
+            <div className="relative">
+              <input
+                id="confirmPassword"
+                type={showConfirmPassword ? "text" : "password"}
+                className={`w-full px-4 py-2 rounded-lg border ${
+                  darkMode
+                    ? "bg-[#4C4C4C] border-gray-600"
+                    : "bg-[#DBDBDB] border-gray-300"
+                }`}
+                placeholder="••••••••"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              >
+                {showConfirmPassword ? (
+                  <FaEyeSlash className="text-gray-500" />
+                ) : (
+                  <FaEye className="text-gray-500" />
+                )}
+              </button>
+            </div>
           </div>
 
           <button
@@ -302,7 +344,7 @@ function SignUp({ darkMode, toggleTheme, switchToSignIn }) {
         </div>
 
         <button
-          onClick={handleGoogleLogin}
+          onClick={handleGoogleSignUp}
           className={`w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg border ${
             darkMode
               ? "border-gray-600 hover:bg-[#4C4C4C]"
