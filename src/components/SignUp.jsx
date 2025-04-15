@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { FaGoogle, FaMoon, FaSun } from "react-icons/fa";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import {
   auth,
   createUserWithEmailAndPassword,
   googleProvider,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup, // Changed from redirect to popup
   db,
 } from "../firebase";
 import { updateProfile } from "firebase/auth";
@@ -19,45 +18,9 @@ function SignUp({ onLogin, darkMode, toggleTheme, switchToSignIn }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
   const [toast, setToast] = useState(null);
-  const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  // Handle redirect result on component mount
-  useEffect(() => {
-    async function checkRedirectResult() {
-      try {
-        const result = await getRedirectResult(auth);
-
-        if (result && result.user) {
-          const user = result.user;
-
-          // Create user document in Firestore
-          await createUserDocument(user);
-
-          // Important: Call onLogin to update auth state in parent component
-          onLogin({
-            id: user.uid,
-            email: user.email,
-            name: user.displayName || user.email.split("@")[0],
-          });
-
-          // No need to display success message or switch to sign in
-          // since onLogin will handle navigation
-        }
-      } catch (err) {
-        console.error("Google redirect error:", err);
-        setToast({
-          type: "error",
-          message: "Failed to sign up with Google. Please try again.",
-        });
-      } finally {
-        setIsProcessingRedirect(false);
-      }
-    }
-
-    checkRedirectResult();
-  }, [onLogin]);
 
   // Function to create user document in Firestore
   const createUserDocument = async (user, additionalData = {}) => {
@@ -93,6 +56,7 @@ function SignUp({ onLogin, darkMode, toggleTheme, switchToSignIn }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
 
     // Validate password match
     if (password !== confirmPassword) {
@@ -100,6 +64,7 @@ function SignUp({ onLogin, darkMode, toggleTheme, switchToSignIn }) {
         type: "error",
         message: "Passwords do not match. Please confirm your password.",
       });
+      setLoading(false);
       return;
     }
 
@@ -109,6 +74,7 @@ function SignUp({ onLogin, darkMode, toggleTheme, switchToSignIn }) {
         type: "error",
         message: "Password must be at least 6 characters long.",
       });
+      setLoading(false);
       return;
     }
 
@@ -160,22 +126,54 @@ function SignUp({ onLogin, darkMode, toggleTheme, switchToSignIn }) {
         type: "error",
         message: errorMessage,
       });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleGoogleSignUp = () => {
-    // Use redirect instead of popup
-    signInWithRedirect(auth, googleProvider).catch((err) => {
-      console.error("Google redirect initiation error:", err);
+  const handleGoogleSignUp = async () => {
+    setLoading(true);
+    try {
+      // Use popup instead of redirect
+      const result = await signInWithPopup(auth, googleProvider);
+
+      if (result && result.user) {
+        const user = result.user;
+
+        // Create user document in Firestore
+        await createUserDocument(user);
+
+        // Call onLogin to update parent component state
+        onLogin({
+          id: user.uid,
+          email: user.email,
+          name: user.displayName || user.email.split("@")[0],
+        });
+      }
+    } catch (err) {
+      console.error("Google sign-up error:", err);
+
+      // Handle specific error codes
+      let errorMessage = "Failed to sign up with Google. Please try again.";
+
+      if (err.code === "auth/popup-closed-by-user") {
+        errorMessage = "Sign-up window was closed. Please try again.";
+      } else if (err.code === "auth/popup-blocked") {
+        errorMessage =
+          "Pop-up was blocked by your browser. Please allow pop-ups for this site.";
+      }
+
       setToast({
         type: "error",
-        message: "Failed to start Google sign-up process. Please try again.",
+        message: errorMessage,
       });
-    });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Show a loading state while checking redirect result
-  if (isProcessingRedirect) {
+  // Show a loading state
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">

@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { FaGoogle, FaMoon, FaSun } from "react-icons/fa";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import {
   auth,
   signInWithEmailAndPassword,
   googleProvider,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
 } from "../firebase";
 import Toast from "./Toast";
 
@@ -14,39 +13,12 @@ function Login({ onLogin, darkMode, toggleTheme, switchToSignUp }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [toast, setToast] = useState(null);
-  const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
-  // Handle redirect result on component mount
-  useEffect(() => {
-    async function checkRedirectResult() {
-      try {
-        const result = await getRedirectResult(auth);
-
-        if (result && result.user) {
-          const user = result.user;
-          onLogin({
-            id: user.uid,
-            email: user.email,
-            name: user.displayName || user.email.split("@")[0],
-          });
-        }
-      } catch (err) {
-        console.error("Google redirect error:", err);
-        setToast({
-          type: "error",
-          message: "Failed to sign in with Google. Please try again.",
-        });
-      } finally {
-        setIsProcessingRedirect(false);
-      }
-    }
-
-    checkRedirectResult();
-  }, [onLogin]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
 
     try {
       const userCredential = await signInWithEmailAndPassword(
@@ -81,26 +53,53 @@ function Login({ onLogin, darkMode, toggleTheme, switchToSignUp }) {
         type: "error",
         message: errorMessage,
       });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleGoogleLogin = () => {
-    // Use redirect instead of popup
-    signInWithRedirect(auth, googleProvider).catch((err) => {
-      console.error("Google redirect initiation error:", err);
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    try {
+      // Use popup instead of redirect for immediate resolution
+      const result = await signInWithPopup(auth, googleProvider);
+
+      if (result && result.user) {
+        const user = result.user;
+        onLogin({
+          id: user.uid,
+          email: user.email,
+          name: user.displayName || user.email.split("@")[0],
+        });
+      }
+    } catch (err) {
+      console.error("Google sign-in error:", err);
+
+      // Handle specific error codes
+      let errorMessage = "Failed to sign in with Google. Please try again.";
+
+      if (err.code === "auth/popup-closed-by-user") {
+        errorMessage = "Sign-in window was closed. Please try again.";
+      } else if (err.code === "auth/popup-blocked") {
+        errorMessage =
+          "Pop-up was blocked by your browser. Please allow pop-ups for this site.";
+      }
+
       setToast({
         type: "error",
-        message: "Failed to start Google sign-in process. Please try again.",
+        message: errorMessage,
       });
-    });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Show a loading state while checking redirect result
-  if (isProcessingRedirect) {
+  // Show a loading state
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-[#85C7F2] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p>Loading...</p>
         </div>
       </div>

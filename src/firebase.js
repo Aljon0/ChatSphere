@@ -5,6 +5,7 @@ import {
   GoogleAuthProvider,
   signInWithEmailAndPassword,
   signInWithRedirect,
+  signInWithPopup, // Add this import
   getRedirectResult,
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
@@ -33,5 +34,6 @@ export {
   googleProvider,
   signInWithEmailAndPassword,
   signInWithRedirect,
+  signInWithPopup, // Export this function
   getRedirectResult,
 };

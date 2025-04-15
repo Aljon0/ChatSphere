@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React, { useState, useEffect } from "react";
 import { FaMoon, FaPlus, FaSearch, FaSignOutAlt, FaSun } from "react-icons/fa";
 import {
@@ -10,6 +11,7 @@ import {
   getDoc,
   onSnapshot,
   serverTimestamp,
+  updateDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
 
@@ -31,6 +33,7 @@ function Sidebar({
   const [searchRegisteredUsers, setSearchRegisteredUsers] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState({});
   const [lastSeen, setLastSeen] = useState({});
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Enhanced online status tracking
   useEffect(() => {
@@ -60,67 +63,87 @@ function Sidebar({
     return () => unsubscribe();
   }, [user?.id]);
 
-  // Update current user's online status
+  // Update current user's online status - FIXED
   useEffect(() => {
     if (!user?.id) return;
 
-    const handleBeforeUnload = () => {
-      // Update status to offline when user closes the app/tab
-      const userRef = doc(db, "users", user.id);
-      setDoc(
-        userRef,
-        {
-          status: "offline",
+    // Create a variable to track if we're unmounting while still logged in
+    let isLoggedInOnUnmount = true;
+
+    const updateOnlineStatus = async (status) => {
+      try {
+        // Skip status update if we're already logging out
+        if (isLoggingOut && status === "offline") return;
+
+        const userRef = doc(db, "users", user.id);
+        await updateDoc(userRef, {
+          status: status,
           lastActive: serverTimestamp(),
-        },
-        { merge: true }
-      );
+        });
+      } catch (error) {
+        // Only log errors that aren't permission-related during logout
+        if (status !== "offline" || !error.message.includes("permission")) {
+          console.error("Error updating online status:", error);
+        }
+      }
+    };
+
+    const handleBeforeUnload = () => {
+      // Use navigator.sendBeacon for more reliable offline status update
+      try {
+        const data = JSON.stringify({
+          userId: user.id,
+          status: "offline",
+          timestamp: new Date().toISOString(),
+        });
+        navigator.sendBeacon("/api/update-status", data);
+      } catch (e) {
+        // Cannot log during unload
+      }
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     // Set user as online when component mounts
-    const userRef = doc(db, "users", user.id);
-    setDoc(
-      userRef,
-      {
-        status: "online",
-        lastActive: serverTimestamp(),
-      },
-      { merge: true }
-    );
+    updateOnlineStatus("online");
 
     return () => {
-      // Clean up
       window.removeEventListener("beforeunload", handleBeforeUnload);
 
-      // Set user as offline when component unmounts
-      setDoc(
-        userRef,
-        {
-          status: "offline",
-          lastActive: serverTimestamp(),
-        },
-        { merge: true }
-      );
+      // Only try to update status if we're not logging out
+      if (isLoggedInOnUnmount && !isLoggingOut) {
+        updateOnlineStatus("offline").catch((err) => {
+          // Silently fail if we can't update on unmount
+        });
+      }
     };
-  }, [user?.id]);
+  }, [user?.id, isLoggingOut]);
 
-  // Filter and sort contacts - FIXED ERROR HERE
+  // Filter and sort contacts
   useEffect(() => {
+    if (!contacts) return;
+
     const filtered = contacts
       .filter((contact) => {
-        // Add null check for contact.name to prevent the error
-        const contactName = contact.name || "";
-        const matchesSearch = contactName
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase());
+        if (!contact) return false;
+
+        // Handle both name and email for Google Authentication users
+        const contactName = contact?.name || "";
+        const contactEmail = contact?.email || "";
+
+        const matchesSearch =
+          contactName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          contactEmail.toLowerCase().includes(searchTerm.toLowerCase());
+
         const matchesOnlineFilter = showOnlineOnly
           ? onlineUsers[contact.id] === true
           : true;
+
         return matchesSearch && matchesOnlineFilter;
       })
       .sort((a, b) => {
+        if (!a || !b) return 0;
+
         // Sort by online status then by last activity
         const isAOnline = onlineUsers[a.id] === true;
         const isBOnline = onlineUsers[b.id] === true;
@@ -137,20 +160,27 @@ function Sidebar({
     setFilteredContacts(filtered);
   }, [contacts, searchTerm, showOnlineOnly, onlineUsers, lastSeen]);
 
-  // Filter registered users - FIXED ERROR HERE TOO
+  // Filter registered users
   useEffect(() => {
-    if (searchTerm.trim() === "") {
+    if (!allUsers || searchTerm.trim() === "") {
       setSearchRegisteredUsers([]);
       return;
     }
 
     const filtered = allUsers.filter((registeredUser) => {
-      // Add null check for registeredUser.name
-      const userName = registeredUser.name || "";
-      const isMatch = userName.toLowerCase().includes(searchTerm.toLowerCase());
-      const isNotCurrentUser = registeredUser.id !== user.id;
-      const isNotInContacts = !contacts.some(
-        (contact) => contact.id === registeredUser.id
+      if (!registeredUser) return false;
+
+      // Improved search to handle Google Auth users with both name and email
+      const userName = registeredUser?.name || "";
+      const userEmail = registeredUser?.email || "";
+
+      const isMatch =
+        userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        userEmail.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const isNotCurrentUser = registeredUser.id !== user?.id;
+      const isNotInContacts = !contacts?.some(
+        (contact) => contact?.id === registeredUser.id
       );
       const isOnline =
         !showOnlineOnly || onlineUsers[registeredUser.id] === true;
@@ -158,7 +188,7 @@ function Sidebar({
       return isMatch && isNotCurrentUser && isNotInContacts && isOnline;
     });
     setSearchRegisteredUsers(filtered);
-  }, [allUsers, searchTerm, user.id, contacts, showOnlineOnly, onlineUsers]);
+  }, [allUsers, searchTerm, user?.id, contacts, showOnlineOnly, onlineUsers]);
 
   // Format timestamp for last message
   const formatTime = (timestamp) => {
@@ -179,6 +209,8 @@ function Sidebar({
   };
 
   const startNewChat = async (userId) => {
+    if (!user?.id) return;
+
     try {
       // Check if chat already exists
       const chatsRef = collection(db, "chats");
@@ -199,23 +231,31 @@ function Sidebar({
 
       // Fetch user details for the selected user
       const userDoc = await getDoc(doc(db, "users", userId));
+      if (!userDoc.exists()) {
+        console.error("User not found");
+        return;
+      }
+
       const userData = userDoc.data();
 
       if (!existingChat) {
         // Create new chat
         const newChatRef = doc(collection(db, "chats"));
-        await setDoc(newChatRef, {
+        const chatData = {
           participants: [user.id, userId],
           createdAt: new Date().toISOString(),
           lastMessage: null,
           unreadCount: { [user.id]: 0, [userId]: 0 },
-        });
+        };
+
+        await setDoc(newChatRef, chatData);
 
         // Add to contacts immediately for better UX
         const newContact = {
           id: userId,
           chatId: newChatRef.id,
-          name: userData.name || "Unknown User", // Added fallback here
+          name: userData.name || "Unknown User",
+          email: userData.email, // Store email for search
           avatar: userData.avatar,
           status: onlineUsers[userId] ? "online" : "offline",
           lastMessage: "No messages yet",
@@ -226,8 +266,12 @@ function Sidebar({
         // Update parent component contacts
         if (typeof setContacts === "function") {
           setContacts((prev) => {
+            if (!prev) return [newContact];
+
             // Check if contact already exists to avoid duplicates
-            const existingContactIndex = prev.findIndex((c) => c.id === userId);
+            const existingContactIndex = prev.findIndex(
+              (c) => c?.id === userId
+            );
             if (existingContactIndex > -1) {
               const updatedContacts = [...prev];
               updatedContacts[existingContactIndex] = newContact;
@@ -253,6 +297,30 @@ function Sidebar({
     return onlineUsers[userId] === true;
   };
 
+  // Fixed logout function to properly handle the offline status update
+  const handleLogoutClick = async () => {
+    setShowLogoutConfirm(false);
+    setIsLoggingOut(true);
+
+    try {
+      // First update the offline status
+      if (user?.id) {
+        const userRef = doc(db, "users", user.id);
+        await updateDoc(userRef, {
+          status: "offline",
+          lastActive: serverTimestamp(),
+        });
+      }
+    } catch (error) {
+      console.log(
+        "Failed to update status during logout, continuing with logout"
+      );
+    } finally {
+      // Then perform the actual logout
+      onLogout();
+    }
+  };
+
   return (
     <div className="flex flex-col h-full relative">
       {/* Logout Confirmation Modal */}
@@ -275,7 +343,7 @@ function Sidebar({
                 Cancel
               </button>
               <button
-                onClick={onLogout}
+                onClick={handleLogoutClick}
                 className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
               >
                 Logout
@@ -294,15 +362,15 @@ function Sidebar({
         <div className="flex items-center space-x-3">
           <div className="relative">
             <img
-              src={user.avatar || "https://via.placeholder.com/150"}
-              alt={user.name || "User"}
+              src={user?.avatar || "https://via.placeholder.com/150"}
+              alt={user?.name || "User"}
               className="w-10 h-10 rounded-full object-cover"
             />
             {/* Always show the current user as online since they're using the app */}
             <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
           </div>
           <div>
-            <div className="font-semibold">{user.name || user.email}</div>
+            <div className="font-semibold">{user?.name || user?.email}</div>
             <div className="text-xs text-green-500">
               {/* Current user is always online when using the app */}
               Online
@@ -345,7 +413,7 @@ function Sidebar({
           <FaSearch className="text-gray-500 mr-2" />
           <input
             type="text"
-            placeholder="Search conversations or users..."
+            placeholder="Search by name or email..."
             className={`flex-1 py-2 outline-none ${
               darkMode ? "bg-[#4C4C4C] text-white" : "bg-white"
             }`}
@@ -410,8 +478,8 @@ function Sidebar({
                 >
                   <div className="relative mr-3">
                     <img
-                      src={contact.avatar || "https://via.placeholder.com/150"}
-                      alt={contact.name || "User"} // Added fallback here
+                      src={contact?.avatar || "https://via.placeholder.com/150"}
+                      alt={contact?.name || "User"}
                       className="w-12 h-12 rounded-full object-cover"
                     />
                     {isUserOnline(contact.id) && (
@@ -427,9 +495,8 @@ function Sidebar({
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between">
                       <h4 className="font-semibold truncate">
-                        {contact.name || "Unknown User"}
-                      </h4>{" "}
-                      {/* Added fallback here */}
+                        {contact?.name || contact?.email || "Unknown User"}
+                      </h4>
                       <span
                         className={`text-xs ${
                           activeChat === contact.id
@@ -437,7 +504,7 @@ function Sidebar({
                             : "text-gray-500"
                         }`}
                       >
-                        {formatTime(contact.timestamp)}
+                        {formatTime(contact?.timestamp)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -450,9 +517,9 @@ function Sidebar({
                             : "text-gray-500"
                         }`}
                       >
-                        {contact.lastMessage || "No messages yet"}
+                        {contact?.lastMessage || "No messages yet"}
                       </p>
-                      {contact.unread > 0 && (
+                      {contact?.unread > 0 && (
                         <span
                           className={`ml-2 flex-shrink-0 inline-flex items-center justify-center h-5 w-5 rounded-full text-xs ${
                             activeChat === contact.id
@@ -480,10 +547,10 @@ function Sidebar({
                   <div className="relative mr-3">
                     <img
                       src={
-                        registeredUser.avatar ||
+                        registeredUser?.avatar ||
                         "https://via.placeholder.com/150"
                       }
-                      alt={registeredUser.name || "User"} // Added fallback here
+                      alt={registeredUser?.name || "User"}
                       className="w-12 h-12 rounded-full object-cover"
                     />
                     {isUserOnline(registeredUser.id) && (
@@ -492,15 +559,14 @@ function Sidebar({
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="font-semibold truncate">
-                      {registeredUser.name || "Unknown User"}{" "}
-                      {/* Added fallback here */}
+                      {registeredUser?.name || "Unknown User"}
                     </h4>
                     <p
                       className={`text-sm truncate ${
                         darkMode ? "text-gray-300" : "text-gray-500"
                       }`}
                     >
-                      {registeredUser.email}
+                      {registeredUser?.email || "No email available"}
                     </p>
                   </div>
                 </div>
