@@ -42,6 +42,7 @@ export interface Message {
   content: string;
   timestamp: string;
   status?: "sent" | "delivered" | "read";
+  searchResults: string[];
 }
 
 export interface Contact {
@@ -71,6 +72,8 @@ export interface ChatHeaderProps {
   onlineUsers: Record<string, boolean>;
   toggleMobileMenu: () => void;
   darkMode: boolean;
+  isSearching: boolean;
+  searchResults: Message[];
   onSearchMessage: (query: string) => void;
   onDeleteConversation: () => void;
 }

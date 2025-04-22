@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { Message, MessageListProps } from "../types";
 
 function MessageList({

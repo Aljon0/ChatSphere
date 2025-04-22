@@ -16,6 +16,8 @@ function ChatHeader({
   toggleMobileMenu,
   darkMode,
   onSearchMessage,
+  isSearching,
+  searchResults,
   onDeleteConversation,
 }: ChatHeaderProps) {
   const [showDropdown, setShowDropdown] = useState(false);
@@ -99,6 +101,13 @@ function ChatHeader({
     e.preventDefault();
     if (searchQuery.trim() && onSearchMessage) {
       onSearchMessage(searchQuery);
+
+      const results = searchResults.filter(
+        (res) => res.content === searchQuery
+      );
+      console.log(searchQuery);
+      console.log(searchResults);
+      console.log(results);
     }
   };
 

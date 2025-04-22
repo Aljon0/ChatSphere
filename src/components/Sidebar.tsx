@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { FaMoon, FaPlus, FaSearch, FaSignOutAlt, FaSun } from "react-icons/fa";
 import {
   collection,
@@ -125,6 +125,7 @@ function Sidebar({
       if (isLoggedInOnUnmount && !isLoggingOut) {
         updateOnlineStatus("offline").catch((err) => {
           // Silently fail if we can't update on unmount
+          console.error(err);
         });
       }
     };

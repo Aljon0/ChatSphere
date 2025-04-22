@@ -55,6 +55,7 @@ function Chat({ user, onLogout, darkMode, toggleTheme }: ChatProps) {
       }));
 
       setSearchResults(results as Message[]);
+      console.log(searchResults);
 
       // Scroll to first result if any
       if (results.length > 0) {
@@ -567,6 +568,8 @@ function Chat({ user, onLogout, darkMode, toggleTheme }: ChatProps) {
               toggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               darkMode={darkMode}
               onSearchMessage={searchMessages}
+              isSearching={isSearching}
+              searchResults={searchResults}
               onDeleteConversation={deleteConversation}
             />
 
