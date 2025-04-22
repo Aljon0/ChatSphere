@@ -63,8 +63,6 @@ function MessageList({
           {groupedMessages[date].map((message, index, array) => {
             const isUserMessage = message.sender === user.id;
             const prevMessage = index > 0 ? array[index - 1] : null;
-            const nextMessage =
-              index < array.length - 1 ? array[index + 1] : null;
 
             // Determine if we should show the avatar based on message sequence
             const showAvatar =

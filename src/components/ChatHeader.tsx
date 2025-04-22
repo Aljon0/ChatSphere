@@ -16,7 +16,6 @@ function ChatHeader({
   toggleMobileMenu,
   darkMode,
   onSearchMessage,
-  isSearching,
   searchResults,
   onDeleteConversation,
 }: ChatHeaderProps) {
