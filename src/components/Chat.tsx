@@ -12,35 +12,40 @@ import {
   where,
   writeBatch,
 } from "firebase/firestore";
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { db } from "../firebase";
 import ChatHeader from "./ChatHeader";
 import MessageInput from "./MessageInput";
 import MessageList from "./MessageList";
 import Sidebar from "./Sidebar";
+import { ChatProps, Contact, User, Message, ExistingChatProps } from "../types";
 
-function Chat({ user, onLogout, darkMode, toggleTheme }) {
-  const [contacts, setContacts] = useState([]);
-  const [activeChat, setActiveChat] = useState(null);
-  const [messages, setMessages] = useState([]);
+function Chat({ user, onLogout, darkMode, toggleTheme }: ChatProps) {
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [activeChat, setActiveChat] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const messagesEndRef = useRef(null);
-  const [registeredUsers, setRegisteredUsers] = useState([]);
-  const [chatId, setChatId] = useState(null);
-  const [activeChatDetails, setActiveChatDetails] = useState(null);
-  const [searchResults, setSearchResults] = useState([]);
+  const messagesEndRef = useRef<HTMLDivElement>(
+    null
+  ) as React.RefObject<HTMLDivElement>;
+  const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
+  const [chatId, setChatId] = useState<string | null>(null);
+  const [activeChatDetails, setActiveChatDetails] = useState<Contact | null>(
+    null
+  );
+  const [searchResults, setSearchResults] = useState<Message[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [onlineUsers, setOnlineUsers] = useState({});
-  const searchMessages = async (query) => {
-    if (!query.trim() || !chatId) return;
+  const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>({});
+  const searchMessages = async (searchQuery: string) => {
+    if (!searchQuery.trim() || !chatId) return;
 
     setIsSearching(true);
     try {
       const messagesRef = collection(db, "chats", chatId, "messages");
       const q = query(
         messagesRef,
-        where("content", ">=", query),
-        where("content", "<=", query + "\uf8ff")
+        where("content", ">=", searchQuery),
+        where("content", "<=", searchQuery + "\uf8ff")
       );
 
       const querySnapshot = await getDocs(q);
@@ -49,7 +54,7 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
         ...doc.data(),
       }));
 
-      setSearchResults(results);
+      setSearchResults(results as Message[]);
 
       // Scroll to first result if any
       if (results.length > 0) {
@@ -76,7 +81,7 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
 
     const usersRef = collection(db, "users");
     const unsubscribe = onSnapshot(usersRef, (snapshot) => {
-      const onlineUsersMap = {};
+      const onlineUsersMap: Record<string, boolean> = {};
 
       snapshot.docs.forEach((doc) => {
         const userData = doc.data();
@@ -84,7 +89,9 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
         const isOnline =
           userData.status === "online" &&
           userData.lastActive &&
-          new Date() - new Date(userData.lastActive.toDate()) < 300000;
+          new Date().getTime() -
+            new Date(userData.lastActive.toDate()).getTime() <
+            300000;
 
         onlineUsersMap[doc.id] = isOnline;
       });
@@ -127,7 +134,7 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
       console.error("Error deleting conversation:", error);
     }
   };
-  const checkUserExists = async (userId) => {
+  const checkUserExists = async (userId: string) => {
     try {
       const userDoc = await getDoc(doc(db, "users", userId));
       return userDoc.exists();
@@ -152,7 +159,7 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
           // Renamed 'doc' to 'chatDoc'
           const chatData = chatDoc.data();
           const otherUserId = chatData.participants.find(
-            (id) => id !== user.id
+            (id: string) => id !== user.id
           );
 
           console.log("Other user ID:", otherUserId);
@@ -165,8 +172,8 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
           return {
             id: otherUserId,
             chatId: chatDoc.id, // Use 'chatDoc' here
-            name: userData.name,
-            avatar: userData.avatar,
+            name: userData?.name,
+            avatar: userData?.avatar,
             status: "online",
             lastMessage: chatData.lastMessage?.content || "No messages yet",
             timestamp: chatData.lastMessage?.timestamp || chatData.createdAt,
@@ -176,7 +183,7 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
       );
 
       console.log("Processed chats:", chatsData);
-      setContacts(chatsData);
+      setContacts(chatsData as Contact[]);
     } catch (error) {
       console.error("Error fetching user chats:", error);
     }
@@ -199,7 +206,7 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
             // Renamed 'doc' to 'chatDoc'
             const chatData = chatDoc.data();
             const otherUserId = chatData.participants.find(
-              (id) => id !== user.id
+              (id: string) => id !== user.id
             );
             const userDoc = await getDoc(doc(db, "users", otherUserId));
             const userData = userDoc.data();
@@ -207,8 +214,8 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
             return {
               id: otherUserId,
               chatId: chatDoc.id, // Use 'chatDoc' here
-              name: userData.name,
-              avatar: userData.avatar,
+              name: userData?.name,
+              avatar: userData?.avatar,
               status: "online", // You can implement real status later
               lastMessage: chatData.lastMessage?.content || "No messages yet",
               timestamp: chatData.lastMessage?.timestamp || chatData.createdAt,
@@ -217,7 +224,7 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
           })
         );
 
-        setContacts(chatsData);
+        setContacts(chatsData as Contact[]);
       } catch (error) {
         console.error("Error fetching user chats:", error);
       }
@@ -233,10 +240,15 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
         const usersCollection = collection(db, "users");
         const usersSnapshot = await getDocs(usersCollection);
         const users = usersSnapshot.docs
-          .map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }))
+          .map((doc) => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              name: data.name || "Unknown", // Ensure name is provided
+              email: data.email || "Unknown", // Ensure email is provided
+              ...data,
+            };
+          })
           .filter((u) => u.id !== user.id); // Exclude current user
         setRegisteredUsers(users);
       } catch (error) {
@@ -265,12 +277,18 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
         const userData = userDoc.data();
 
         // Set active chat details
-        setActiveChatDetails({
-          id: activeChat,
-          name: userData.name,
-          avatar: userData.avatar,
-          status: "online",
-        });
+        if (userData) {
+          setActiveChatDetails({
+            id: activeChat,
+            chatId: chatId || "", // Provide a fallback if chatId is null
+            name: userData.name,
+            avatar: userData.avatar,
+            status: "online",
+            unread: 0, // Default unread count
+          });
+        } else {
+          console.error("User data is undefined for activeChat:", activeChat);
+        }
 
         // Check if chat already exists between these users
         const chatsRef = collection(db, "chats");
@@ -280,12 +298,21 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
         );
 
         const querySnapshot = await getDocs(q);
-        let existingChat = null;
+        let existingChat: ExistingChatProps = {
+          id: "",
+          participants: [],
+          createdAt: "",
+          lastMessage: "",
+          unreadCount: "",
+        };
 
         querySnapshot.forEach((doc) => {
           const chatData = doc.data();
           if (chatData.participants.includes(activeChat)) {
-            existingChat = { id: doc.id, ...chatData };
+            existingChat = {
+              id: doc.id,
+              ...chatData,
+            } as ExistingChatProps;
           }
         });
 
@@ -299,26 +326,32 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
             unreadCount: { [user.id]: 0, [activeChat]: 0 },
           });
 
-          // Add to contacts immediately for better UX
-          setContacts((prev) => [
-            ...prev,
-            {
-              id: activeChat,
-              chatId: newChatRef.id,
-              name: userData.name,
-              avatar: userData.avatar,
-              status: "online",
-              lastMessage: "No messages yet",
-              timestamp: new Date().toISOString(),
-              unread: 0,
-            },
-          ]);
+          if (userData) {
+            // Add to contacts immediately for better UX
+            setContacts((prev) => [
+              ...prev,
+              {
+                id: activeChat,
+                chatId: newChatRef.id,
+                name: userData.name,
+                avatar: userData.avatar,
+                status: "online",
+                lastMessage: "No messages yet",
+                timestamp: new Date().toISOString(),
+                unread: 0,
+              },
+            ]);
+          }
 
           setChatId(newChatRef.id);
           setupRealTimeMessages(newChatRef.id);
         } else {
-          setChatId(existingChat.id);
-          setupRealTimeMessages(existingChat.id);
+          if (existingChat.id) {
+            setChatId(existingChat.id);
+            setupRealTimeMessages(existingChat.id);
+          } else {
+            console.error("Chat ID is undefined for existingChat.");
+          }
         }
       } catch (error) {
         console.error("Error in fetchOrCreateChat:", error);
@@ -329,14 +362,20 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
   }, [activeChat, user.id]);
 
   // Setup real-time message listener
-  const setupRealTimeMessages = (chatId) => {
+  const setupRealTimeMessages = (chatId: string) => {
     const messagesRef = collection(db, "chats", chatId, "messages");
     const unsubscribe = onSnapshot(messagesRef, (snapshot) => {
-      const messagesData = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setMessages(messagesData);
+      const messagesData = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          sender: data.sender || "unknown",
+          content: data.content || "",
+          timestamp: data.timestamp || new Date().toISOString(),
+          ...data,
+        };
+      });
+      setMessages(messagesData as Message[]);
 
       // Mark messages as read when they are displayed
       markMessagesAsRead(chatId);
@@ -346,7 +385,7 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
   };
 
   // Mark messages as read
-  const markMessagesAsRead = async (chatId) => {
+  const markMessagesAsRead = async (chatId: string) => {
     try {
       const chatRef = doc(db, "chats", chatId);
       await updateDoc(chatRef, {
@@ -365,7 +404,7 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
   };
 
   // Send message function
-  const sendMessage = async (content) => {
+  const sendMessage = async (content: string) => {
     if (!content.trim() || !activeChat || !chatId) return;
 
     try {
@@ -415,7 +454,7 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
             // Renamed 'doc' to 'chatDoc'
             const chatData = chatDoc.data();
             const otherUserId = chatData.participants.find(
-              (id) => id !== user.id
+              (id: string) => id !== user.id
             );
             const userDoc = await getDoc(doc(db, "users", otherUserId));
             const userData = userDoc.data();
@@ -423,8 +462,8 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
             return {
               id: otherUserId,
               chatId: chatDoc.id, // Use 'chatDoc' here
-              name: userData.name,
-              avatar: userData.avatar,
+              name: userData?.name,
+              avatar: userData?.avatar,
               status: "online", // You can implement real status later
               lastMessage: chatData.lastMessage?.content || "No messages yet",
               timestamp: chatData.lastMessage?.timestamp || chatData.createdAt,
@@ -433,7 +472,7 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
           })
         );
 
-        setContacts(chatsData);
+        setContacts(chatsData as Contact[]);
       } catch (error) {
         console.error("Error fetching user chats:", error);
       }
@@ -453,7 +492,7 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
         querySnapshot.docs.map(async (chatDoc) => {
           const chatData = chatDoc.data();
           const otherUserId = chatData.participants.find(
-            (id) => id !== user.id
+            (id: string) => id !== user.id
           );
 
           const userDoc = await getDoc(doc(db, "users", otherUserId));
@@ -462,8 +501,8 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
           return {
             id: otherUserId,
             chatId: chatDoc.id,
-            name: userData.name,
-            avatar: userData.avatar,
+            name: userData?.name,
+            avatar: userData?.avatar,
             status: "online",
             lastMessage: chatData.lastMessage?.content || "No messages yet",
             timestamp: chatData.lastMessage?.timestamp || chatData.createdAt,
@@ -472,7 +511,7 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
         })
       );
 
-      setContacts(chatsData);
+      setContacts(chatsData as Contact[]);
     });
 
     return () => unsubscribe();
@@ -518,9 +557,11 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
               contact={
                 activeChatDetails || {
                   id: activeChat,
+                  chatId: "",
                   name: activeChat,
                   avatar: "",
                   status: "offline",
+                  unread: 0,
                 }
               }
               toggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -533,7 +574,9 @@ function Chat({ user, onLogout, darkMode, toggleTheme }) {
               messages={messages}
               user={user}
               contact={
-                activeChatDetails || contacts.find((c) => c.id === activeChat)
+                activeChatDetails ||
+                contacts.find((c) => c.id === activeChat) ||
+                null
               }
               darkMode={darkMode}
               messagesEndRef={messagesEndRef}

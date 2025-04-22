@@ -8,15 +8,16 @@ import {
   signInWithPopup,
 } from "../firebase";
 import Toast from "./Toast";
+import { LoginProps, ToastMessage } from "../types";
 
-function Login({ onLogin, darkMode, toggleTheme, switchToSignUp }) {
+function Login({ onLogin, darkMode, toggleTheme, switchToSignUp }: LoginProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [toast, setToast] = useState(null);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
@@ -29,10 +30,16 @@ function Login({ onLogin, darkMode, toggleTheme, switchToSignUp }) {
       const user = userCredential.user;
       onLogin({
         id: user.uid,
-        email: user.email,
-        name: user.displayName || user.email.split("@")[0],
+        email: user.email || "",
+        name: user.displayName || user.email?.split("@")[0] || "Anonymous",
+        avatar:
+          user.photoURL ||
+          `https://api.dicebear.com/7.x/avataaars/svg?seed=${
+            user.email || "default"
+          }`,
+        status: "online",
       });
-    } catch (err) {
+    } catch (err: any) {
       // Comprehensive error mapping
       const errorMap = {
         "auth/invalid-credential":
@@ -47,11 +54,13 @@ function Login({ onLogin, darkMode, toggleTheme, switchToSignUp }) {
       };
 
       // Prioritize specific error codes, fallback to default
-      const errorMessage = errorMap[err.code] || errorMap["default"];
+      const errorMessage =
+        errorMap[err.code as keyof typeof errorMap] || errorMap["default"];
 
       setToast({
         type: "error",
         message: errorMessage,
+        onClose: () => setToast(null),
       });
     } finally {
       setLoading(false);
@@ -68,8 +77,8 @@ function Login({ onLogin, darkMode, toggleTheme, switchToSignUp }) {
         const user = result.user;
         onLogin({
           id: user.uid,
-          email: user.email,
-          name: user.displayName || user.email.split("@")[0],
+          email: user.email || "",
+          name: user.displayName || user.email?.split("@")[0] || "Anonymous",
         });
       }
     } catch (err) {
@@ -78,9 +87,9 @@ function Login({ onLogin, darkMode, toggleTheme, switchToSignUp }) {
       // Handle specific error codes
       let errorMessage = "Failed to sign in with Google. Please try again.";
 
-      if (err.code === "auth/popup-closed-by-user") {
+      if ((err as { code?: string }).code === "auth/popup-closed-by-user") {
         errorMessage = "Sign-in window was closed. Please try again.";
-      } else if (err.code === "auth/popup-blocked") {
+      } else if ((err as { code?: string }).code === "auth/popup-blocked") {
         errorMessage =
           "Pop-up was blocked by your browser. Please allow pop-ups for this site.";
       }

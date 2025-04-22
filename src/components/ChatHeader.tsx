@@ -8,6 +8,7 @@ import {
   FaTrash,
   FaVideo,
 } from "react-icons/fa";
+import { ChatHeaderProps } from "../types";
 
 function ChatHeader({
   contact,
@@ -16,18 +17,21 @@ function ChatHeader({
   darkMode,
   onSearchMessage,
   onDeleteConversation,
-}) {
+}: ChatHeaderProps) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSearchBar, setShowSearchBar] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const dropdownRef = useRef(null);
-  const searchInputRef = useRef(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setShowDropdown(false);
       }
     }
@@ -56,7 +60,11 @@ function ChatHeader({
     return (
       contact.status === "online" &&
       contact.lastActive &&
-      new Date() - new Date(contact.lastActive.toDate()) < 300000
+      new Date().getTime() -
+        (contact.lastActive instanceof Date
+          ? contact.lastActive.getTime()
+          : new Date(contact.lastActive.toDate?.()).getTime()) <
+        300000
     );
   };
   const getStatusDisplay = () => {
@@ -67,12 +75,16 @@ function ChatHeader({
     // Handle offline status with last seen time if available
     if (contact.lastActive) {
       const lastActiveDate =
+        contact.lastActive &&
+        "toDate" in contact.lastActive &&
         typeof contact.lastActive.toDate === "function"
           ? contact.lastActive.toDate()
-          : new Date(contact.lastActive);
+          : contact.lastActive instanceof Date
+          ? contact.lastActive
+          : new Date(contact.lastActive.toDate());
 
       const diffMinutes = Math.floor(
-        (new Date() - lastActiveDate) / (1000 * 60)
+        (new Date().getTime() - lastActiveDate.getTime()) / (1000 * 60)
       );
 
       if (diffMinutes < 60) return `${diffMinutes}m ago`;
@@ -83,7 +95,7 @@ function ChatHeader({
     return "Offline";
   };
 
-  const handleSearchSubmit = (e) => {
+  const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim() && onSearchMessage) {
       onSearchMessage(searchQuery);

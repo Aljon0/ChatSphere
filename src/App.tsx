@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from "react";
+// src/App.tsx
+import { useState, useEffect } from "react";
 import { auth, db } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import Chat from "./components/Chat";
 import Auth from "./components/Auth";
+import { User } from "./types";
 
 function App() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<User | null>(null);
   const [darkMode, setDarkMode] = useState(() => {
     const savedTheme = localStorage.getItem("theme");
     return savedTheme ? savedTheme === "dark" : false;
@@ -21,20 +23,19 @@ function App() {
       document.body.classList.add("light");
       document.body.classList.remove("dark");
     }
-
-    // Save to localStorage whenever darkMode changes
     localStorage.setItem("theme", darkMode ? "dark" : "light");
   }, [darkMode]);
 
-  // Update user status when auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        // User is signed in
-        const userData = {
+        const userData: User = {
           id: currentUser.uid,
-          name: currentUser.displayName || currentUser.email.split("@")[0],
-          email: currentUser.email,
+          name:
+            currentUser.displayName ||
+            currentUser.email?.split("@")[0] ||
+            "Anonymous",
+          email: currentUser.email || "",
           avatar:
             currentUser.photoURL ||
             `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.email}`,
@@ -44,7 +45,6 @@ function App() {
         setUser(userData);
 
         try {
-          // Update user status in Firestore
           const userRef = doc(db, "users", currentUser.uid);
           await setDoc(
             userRef,
@@ -61,32 +61,30 @@ function App() {
           console.error("Error updating user status:", error);
         }
       } else {
-        // User is signed out
         setUser(null);
       }
       setLoading(false);
     });
 
-    // Cleanup subscription
     return () => unsubscribe();
   }, []);
 
-  const handleLogin = async (userData) => {
+  const handleLogin = async (userData: Partial<User>) => {
     if (auth.currentUser) {
-      const userInfo = {
+      const userInfo: User = {
         id: auth.currentUser.uid,
-        name: userData.name || userData.email.split("@")[0],
-        email: userData.email,
+        name:
+          userData.name || auth.currentUser.email?.split("@")[0] || "Anonymous",
+        email: auth.currentUser.email || "",
         avatar:
           auth.currentUser.photoURL ||
-          `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.email}`,
+          `https://api.dicebear.com/7.x/avataaars/svg?seed=${auth.currentUser.email}`,
         status: "online",
       };
 
       setUser(userInfo);
 
       try {
-        // Update user in Firestore after login
         const userRef = doc(db, "users", auth.currentUser.uid);
         await setDoc(
           userRef,
@@ -105,11 +103,9 @@ function App() {
     }
   };
 
-  // Modified logout handler to update status before logout
   const handleLogout = async () => {
     try {
       if (user?.id) {
-        // Set user as offline before signing out
         const userRef = doc(db, "users", user.id);
         await setDoc(
           userRef,
@@ -123,15 +119,13 @@ function App() {
     } catch (error) {
       console.error("Error updating status before logout:", error);
     } finally {
-      // Continue with logout regardless of status update success
-      auth.signOut();
+      await auth.signOut();
     }
   };
 
   const toggleTheme = () => {
     setDarkMode((prevMode) => {
       const newMode = !prevMode;
-      // Save immediately to localStorage
       localStorage.setItem("theme", newMode ? "dark" : "light");
       return newMode;
     });

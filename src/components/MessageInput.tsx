@@ -6,12 +6,13 @@ import {
   FaPaperclip,
   FaSmile,
 } from "react-icons/fa";
+import { MessageInputProps } from "../types";
 
-function MessageInput({ onSendMessage, darkMode }) {
+function MessageInput({ onSendMessage, darkMode }: MessageInputProps) {
   const [message, setMessage] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (message.trim()) {
       onSendMessage(message);

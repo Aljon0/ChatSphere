@@ -1,9 +1,10 @@
 // Auth.js
-import React, { useState } from "react";
+import { useState } from "react";
 import Login from "./Login";
 import SignUp from "./SignUp";
+import { AuthProps } from "../types";
 
-function Auth({ onLogin, darkMode, toggleTheme }) {
+function Auth({ onLogin, darkMode, toggleTheme }: AuthProps) {
   const [isRegistering, setIsRegistering] = useState(false);
 
   return isRegistering ? (

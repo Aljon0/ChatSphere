@@ -14,25 +14,30 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
+import { Contact, SidebarProps, User } from "../types";
 
 function Sidebar({
   user,
   contacts,
-  setContacts,
+
   activeChat,
   setActiveChat,
   onLogout,
   darkMode,
   toggleTheme,
   allUsers,
-}) {
+}: SidebarProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [showOnlineOnly, setShowOnlineOnly] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [filteredContacts, setFilteredContacts] = useState([]);
-  const [searchRegisteredUsers, setSearchRegisteredUsers] = useState([]);
-  const [onlineUsers, setOnlineUsers] = useState({});
-  const [lastSeen, setLastSeen] = useState({});
+  const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
+  const [searchRegisteredUsers, setSearchRegisteredUsers] = useState<User[]>(
+    []
+  );
+  const [onlineUsers, setOnlineUsers] = useState<{ [key: string]: boolean }>(
+    {}
+  );
+  const [lastSeen, setLastSeen] = useState<Record<string, any>>({});
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Enhanced online status tracking
@@ -41,8 +46,8 @@ function Sidebar({
 
     const usersRef = collection(db, "users");
     const unsubscribe = onSnapshot(usersRef, (snapshot) => {
-      const onlineUsersMap = {};
-      const lastSeenMap = {};
+      const onlineUsersMap: { [key: string]: boolean } = {};
+      const lastSeenMap: { [key: string]: any } = {};
 
       snapshot.docs.forEach((doc) => {
         const userData = doc.data();
@@ -50,7 +55,9 @@ function Sidebar({
         const isOnline =
           userData.status === "online" &&
           userData.lastActive &&
-          new Date() - new Date(userData.lastActive.toDate()) < 300000; // 5 minutes threshold
+          new Date().getTime() -
+            new Date(userData.lastActive.toDate()).getTime() <
+            300000; // 5 minutes threshold
 
         onlineUsersMap[doc.id] = isOnline;
         lastSeenMap[doc.id] = userData.lastActive;
@@ -70,7 +77,7 @@ function Sidebar({
     // Create a variable to track if we're unmounting while still logged in
     let isLoggedInOnUnmount = true;
 
-    const updateOnlineStatus = async (status) => {
+    const updateOnlineStatus = async (status: string) => {
       try {
         // Skip status update if we're already logging out
         if (isLoggingOut && status === "offline") return;
@@ -82,7 +89,11 @@ function Sidebar({
         });
       } catch (error) {
         // Only log errors that aren't permission-related during logout
-        if (status !== "offline" || !error.message.includes("permission")) {
+        if (
+          status !== "offline" ||
+          !(error instanceof Error) ||
+          !error.message.includes("permission")
+        ) {
           console.error("Error updating online status:", error);
         }
       }
@@ -191,11 +202,13 @@ function Sidebar({
   }, [allUsers, searchTerm, user?.id, contacts, showOnlineOnly, onlineUsers]);
 
   // Format timestamp for last message
-  const formatTime = (timestamp) => {
+  const formatTime = (timestamp: string) => {
     if (!timestamp) return "";
     const date = new Date(timestamp);
     const now = new Date();
-    const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+    const diffDays = Math.floor(
+      (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24)
+    );
 
     if (diffDays === 0) {
       return date.toLocaleTimeString([], {
@@ -208,7 +221,7 @@ function Sidebar({
     return date.toLocaleDateString([], { weekday: "short" });
   };
 
-  const startNewChat = async (userId) => {
+  const startNewChat = async (userId: string) => {
     if (!user?.id) return;
 
     try {
@@ -257,23 +270,25 @@ function Sidebar({
           name: userData.name || "Unknown User",
           email: userData.email, // Store email for search
           avatar: userData.avatar,
-          status: onlineUsers[userId] ? "online" : "offline",
+          status: onlineUsers[userId]
+            ? ("online" as const)
+            : ("offline" as const),
           lastMessage: "No messages yet",
           timestamp: new Date().toISOString(),
           unread: 0,
         };
 
         // Update parent component contacts
-        if (typeof setContacts === "function") {
-          setContacts((prev) => {
+        if (typeof contacts === "function") {
+          setFilteredContacts((prev: Contact[] | null) => {
             if (!prev) return [newContact];
 
             // Check if contact already exists to avoid duplicates
             const existingContactIndex = prev.findIndex(
-              (c) => c?.id === userId
+              (c: Contact | null) => c?.id === userId
             );
             if (existingContactIndex > -1) {
-              const updatedContacts = [...prev];
+              const updatedContacts: Contact[] = [...prev];
               updatedContacts[existingContactIndex] = newContact;
               return updatedContacts;
             }
@@ -293,7 +308,7 @@ function Sidebar({
   };
 
   // Helper function to check if user is online
-  const isUserOnline = (userId) => {
+  const isUserOnline = (userId: string) => {
     return onlineUsers[userId] === true;
   };
 
@@ -478,7 +493,10 @@ function Sidebar({
                 >
                   <div className="relative mr-3">
                     <img
-                      src={contact?.avatar || "https://via.placeholder.com/150"}
+                      src={
+                        contact?.avatar.trim() ||
+                        "https://via.placeholder.com/150"
+                      }
                       alt={contact?.name || "User"}
                       className="w-12 h-12 rounded-full object-cover"
                     />
@@ -504,7 +522,7 @@ function Sidebar({
                             : "text-gray-500"
                         }`}
                       >
-                        {formatTime(contact?.timestamp)}
+                        {formatTime(contact?.timestamp || "")}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">

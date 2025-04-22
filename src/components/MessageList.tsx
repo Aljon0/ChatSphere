@@ -1,27 +1,37 @@
 /* eslint-disable no-unused-vars */
 import React, { useEffect } from "react";
+import { Message, MessageListProps } from "../types";
 
-function MessageList({ messages, user, contact, darkMode, messagesEndRef }) {
+function MessageList({
+  messages,
+  user,
+  contact,
+  darkMode,
+  messagesEndRef,
+}: MessageListProps) {
   // Format timestamp for messages
-  const formatMessageTime = (timestamp) => {
+  const formatMessageTime = (timestamp: string) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
   // Sort messages by timestamp
   const sortedMessages = [...messages].sort(
-    (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
 
   // Group sorted messages by date
-  const groupedMessages = sortedMessages.reduce((groups, message) => {
-    const date = new Date(message.timestamp).toLocaleDateString();
-    if (!groups[date]) {
-      groups[date] = [];
-    }
-    groups[date].push(message);
-    return groups;
-  }, {});
+  const groupedMessages = sortedMessages.reduce(
+    (groups: Record<string, Message[]>, message) => {
+      const date = new Date(message.timestamp).toLocaleDateString();
+      if (!groups[date]) {
+        groups[date] = [];
+      }
+      groups[date].push(message);
+      return groups;
+    },
+    {}
+  );
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -61,7 +71,8 @@ function MessageList({ messages, user, contact, darkMode, messagesEndRef }) {
               !prevMessage ||
               prevMessage.sender !== message.sender ||
               // Show avatar if there's a significant time gap
-              new Date(message.timestamp) - new Date(prevMessage.timestamp) >
+              new Date(message.timestamp).getTime() -
+                new Date(prevMessage.timestamp).getTime() >
                 5 * 60 * 1000;
 
             return (

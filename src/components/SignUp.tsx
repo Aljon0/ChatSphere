@@ -11,21 +11,31 @@ import {
 import { updateProfile } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import Toast from "./Toast";
+import { SignUpProps, ToastMessage } from "../types";
+import { User } from "firebase/auth";
 
-function SignUp({ onLogin, darkMode, toggleTheme, switchToSignIn }) {
+function SignUp({
+  onLogin,
+  darkMode,
+  toggleTheme,
+  switchToSignIn,
+}: SignUpProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
-  const [toast, setToast] = useState(null);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Function to create user document in Firestore
-  const createUserDocument = async (user, additionalData = {}) => {
+  const createUserDocument = async (user: User, additionalData: any = {}) => {
     if (!user) return;
 
+    if (!user.uid) {
+      throw new Error("User UID is undefined.");
+    }
     const userRef = doc(db, "users", user.uid);
     const userSnapshot = await getDoc(userRef);
 
@@ -54,7 +64,7 @@ function SignUp({ onLogin, darkMode, toggleTheme, switchToSignIn }) {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
@@ -120,7 +130,9 @@ function SignUp({ onLogin, darkMode, toggleTheme, switchToSignIn }) {
           "An unexpected error occurred during signup. Please try again.",
       };
 
-      const errorMessage = errorMap[err.code] || errorMap["default"];
+      const errorMessage =
+        errorMap[(err as { code: string }).code as keyof typeof errorMap] ||
+        errorMap["default"];
 
       setToast({
         type: "error",
@@ -146,8 +158,10 @@ function SignUp({ onLogin, darkMode, toggleTheme, switchToSignIn }) {
         // Call onLogin to update parent component state
         onLogin({
           id: user.uid,
-          email: user.email,
-          name: user.displayName || user.email.split("@")[0],
+          email: user.email || "",
+          name:
+            user.displayName ||
+            (user.email ? user.email.split("@")[0] : "Unknown User"),
         });
       }
     } catch (err) {
@@ -156,9 +170,9 @@ function SignUp({ onLogin, darkMode, toggleTheme, switchToSignIn }) {
       // Handle specific error codes
       let errorMessage = "Failed to sign up with Google. Please try again.";
 
-      if (err.code === "auth/popup-closed-by-user") {
+      if ((err as { code: string }).code === "auth/popup-closed-by-user") {
         errorMessage = "Sign-up window was closed. Please try again.";
-      } else if (err.code === "auth/popup-blocked") {
+      } else if ((err as { code: string }).code === "auth/popup-blocked") {
         errorMessage =
           "Pop-up was blocked by your browser. Please allow pop-ups for this site.";
       }
@@ -276,7 +290,7 @@ function SignUp({ onLogin, darkMode, toggleTheme, switchToSignIn }) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength="6"
+                minLength={6}
               />
               <button
                 type="button"

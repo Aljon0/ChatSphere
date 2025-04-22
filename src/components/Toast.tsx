@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { CheckCircle, XCircle, AlertTriangle, Info } from "lucide-react";
+import { ToastMessage } from "../types";
 
-const Toast = ({ type, message, onClose }) => {
+const Toast = ({ type, message, onClose }: ToastMessage) => {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsVisible(false);
-      onClose();
+      if (onClose) {
+        onClose();
+      }
     }, 5000);
 
     return () => clearTimeout(timer);

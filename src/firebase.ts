@@ -3,12 +3,13 @@ import {
   createUserWithEmailAndPassword,
   getAuth,
   GoogleAuthProvider,
+  Auth,
   signInWithEmailAndPassword,
   signInWithRedirect,
-  signInWithPopup, // Add this import
+  signInWithPopup,
   getRedirectResult,
 } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, Firestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -23,17 +24,15 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
-const db = getFirestore(app);
+export const googleProvider = new GoogleAuthProvider();
+
+export const auth: Auth = getAuth(app);
+export const db: Firestore = getFirestore(app);
 
 export {
-  auth,
   createUserWithEmailAndPassword,
-  db,
-  googleProvider,
   signInWithEmailAndPassword,
   signInWithRedirect,
-  signInWithPopup, // Export this function
+  signInWithPopup,
   getRedirectResult,
 };
