@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { FaGoogle, FaMoon, FaSun } from "react-icons/fa";
+import { FaGoogle, FaMoon, FaSun, FaUser } from "react-icons/fa";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import {
   auth,
   signInWithEmailAndPassword,
   googleProvider,
   signInWithPopup,
+  signInAnonymously,
 } from "../firebase";
 import Toast from "./Toast";
 import { LoginProps, ToastMessage } from "../types";
@@ -97,6 +98,37 @@ function Login({ onLogin, darkMode, toggleTheme, switchToSignUp }: LoginProps) {
       setToast({
         type: "error",
         message: errorMessage,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // New function to handle anonymous/guest login
+  const handleGuestLogin = async () => {
+    setLoading(true);
+    try {
+      const result = await signInAnonymously(auth);
+      
+      if (result && result.user) {
+        const user = result.user;
+        const guestName = `Guest-${user.uid.substring(0, 5)}`;
+        
+        onLogin({
+          id: user.uid,
+          email: "",
+          name: guestName,
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${guestName}`,
+          status: "online",
+        });
+      }
+    } catch (err) {
+      console.error("Guest sign-in error:", err);
+      
+      setToast({
+        type: "error",
+        message: "Failed to sign in as guest. Please try again.",
+        onClose: () => setToast(null),
       });
     } finally {
       setLoading(false);
@@ -219,16 +251,32 @@ function Login({ onLogin, darkMode, toggleTheme, switchToSignUp }: LoginProps) {
           <div className="flex-grow border-t border-gray-400"></div>
         </div>
 
+        {/* Google Login Button */}
         <button
           onClick={handleGoogleLogin}
           className={`w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg border ${
             darkMode
               ? "border-gray-600 hover:bg-[#4C4C4C]"
               : "border-gray-300 hover:bg-gray-100"
-          } transition-colors`}
+          } transition-colors mb-3`}
         >
           <FaGoogle className="text-red-500" />
           <span>Continue with Google</span>
+        </button>
+
+        {/* New Guest/Demo Login Button */}
+        <button
+          onClick={handleGuestLogin}
+          className={`w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg ${
+            darkMode
+              ? "bg-[#4C4C4C] hover:bg-[#3C3C3C] text-white"
+              : "bg-[#F0F0F0] hover:bg-[#E0E0E0] text-gray-700"
+          } transition-colors border ${
+            darkMode ? "border-gray-600" : "border-gray-300"
+          }`}
+        >
+          <FaUser className="text-[#85C7F2]" />
+          <span>Try as Guest</span>
         </button>
 
         <div className="mt-6 text-center">
