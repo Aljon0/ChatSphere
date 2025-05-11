@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 import {
   collection,
   doc,
@@ -14,17 +13,17 @@ import {
 } from "firebase/firestore";
 import { useEffect, useRef, useState } from "react";
 import { db } from "../firebase";
+import { ChatProps, Contact, ExistingChatProps, Message, User } from "../types";
 import ChatHeader from "./ChatHeader";
 import MessageInput from "./MessageInput";
 import MessageList from "./MessageList";
 import Sidebar from "./Sidebar";
-import { ChatProps, Contact, User, Message, ExistingChatProps } from "../types";
 
 function Chat({ user, onLogout, darkMode, toggleTheme }: ChatProps) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(true); // Default to open on mobile
   const messagesEndRef = useRef<HTMLDivElement>(
     null
   ) as React.RefObject<HTMLDivElement>;
@@ -36,6 +35,7 @@ function Chat({ user, onLogout, darkMode, toggleTheme }: ChatProps) {
   const [searchResults, setSearchResults] = useState<Message[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>({});
+
   const searchMessages = async (searchQuery: string) => {
     if (!searchQuery.trim() || !chatId) return;
 
@@ -131,10 +131,14 @@ function Chat({ user, onLogout, darkMode, toggleTheme }: ChatProps) {
 
       // Refresh contacts list
       fetchUserChats();
+
+      // Make sure sidebar is visible on mobile after deletion
+      setIsMobileMenuOpen(true);
     } catch (error) {
       console.error("Error deleting conversation:", error);
     }
   };
+
   const checkUserExists = async (userId: string) => {
     try {
       const userDoc = await getDoc(doc(db, "users", userId));
@@ -144,6 +148,7 @@ function Chat({ user, onLogout, darkMode, toggleTheme }: ChatProps) {
       return false;
     }
   };
+
   const fetchUserChats = async () => {
     try {
       const chatsRef = collection(db, "chats");
@@ -193,76 +198,15 @@ function Chat({ user, onLogout, darkMode, toggleTheme }: ChatProps) {
   useEffect(() => {
     if (!user.id) return;
 
-    const fetchUserChats = async () => {
-      try {
-        const chatsRef = collection(db, "chats");
-        const q = query(
-          chatsRef,
-          where("participants", "array-contains", user.id)
-        );
-        const querySnapshot = await getDocs(q);
-
-        const chatsData = await Promise.all(
-          querySnapshot.docs.map(async (chatDoc) => {
-            // Renamed 'doc' to 'chatDoc'
-            const chatData = chatDoc.data();
-            const otherUserId = chatData.participants.find(
-              (id: string) => id !== user.id
-            );
-            const userDoc = await getDoc(doc(db, "users", otherUserId));
-            const userData = userDoc.data();
-
-            return {
-              id: otherUserId,
-              chatId: chatDoc.id, // Use 'chatDoc' here
-              name: userData?.name,
-              avatar: userData?.avatar,
-              status: "online", // You can implement real status later
-              lastMessage: chatData.lastMessage?.content || "No messages yet",
-              timestamp: chatData.lastMessage?.timestamp || chatData.createdAt,
-              unread: chatData.unreadCount[user.id] || 0,
-            };
-          })
-        );
-
-        setContacts(chatsData as Contact[]);
-      } catch (error) {
-        console.error("Error fetching user chats:", error);
-      }
-    };
-
     fetchUserChats();
-  }, [user.id]);
-
-  // Fetch all registered users
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const usersCollection = collection(db, "users");
-        const usersSnapshot = await getDocs(usersCollection);
-        const users = usersSnapshot.docs
-          .map((doc) => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              name: data.name || "Unknown", // Ensure name is provided
-              email: data.email || "Unknown", // Ensure email is provided
-              ...data,
-            };
-          })
-          .filter((u) => u.id !== user.id); // Exclude current user
-        setRegisteredUsers(users);
-      } catch (error) {
-        console.error("Error fetching users:", error);
-      }
-    };
-
-    fetchUsers();
   }, [user.id]);
 
   // Fetch or create chat when activeChat changes
   useEffect(() => {
     if (!activeChat) return;
+
+    // Hide sidebar when chat is selected on mobile
+    setIsMobileMenuOpen(false);
 
     const fetchOrCreateChat = async () => {
       try {
@@ -317,7 +261,7 @@ function Chat({ user, onLogout, darkMode, toggleTheme }: ChatProps) {
           }
         });
 
-        if (!existingChat) {
+        if (!existingChat.id) {
           // Create new chat
           const newChatRef = doc(collection(db, "chats"));
           await setDoc(newChatRef, {
@@ -437,49 +381,30 @@ function Chat({ user, onLogout, darkMode, toggleTheme }: ChatProps) {
     }
   };
 
-  // Fetch user chats (contacts)
+  // Fetch all registered users
   useEffect(() => {
-    if (!user.id) return;
-
-    const fetchUserChats = async () => {
+    const fetchUsers = async () => {
       try {
-        const chatsRef = collection(db, "chats");
-        const q = query(
-          chatsRef,
-          where("participants", "array-contains", user.id)
-        );
-        const querySnapshot = await getDocs(q);
-
-        const chatsData = await Promise.all(
-          querySnapshot.docs.map(async (chatDoc) => {
-            // Renamed 'doc' to 'chatDoc'
-            const chatData = chatDoc.data();
-            const otherUserId = chatData.participants.find(
-              (id: string) => id !== user.id
-            );
-            const userDoc = await getDoc(doc(db, "users", otherUserId));
-            const userData = userDoc.data();
-
+        const usersCollection = collection(db, "users");
+        const usersSnapshot = await getDocs(usersCollection);
+        const users = usersSnapshot.docs
+          .map((doc) => {
+            const data = doc.data();
             return {
-              id: otherUserId,
-              chatId: chatDoc.id, // Use 'chatDoc' here
-              name: userData?.name,
-              avatar: userData?.avatar,
-              status: "online", // You can implement real status later
-              lastMessage: chatData.lastMessage?.content || "No messages yet",
-              timestamp: chatData.lastMessage?.timestamp || chatData.createdAt,
-              unread: chatData.unreadCount[user.id] || 0,
+              id: doc.id,
+              name: data.name || "Unknown", // Ensure name is provided
+              email: data.email || "Unknown", // Ensure email is provided
+              ...data,
             };
           })
-        );
-
-        setContacts(chatsData as Contact[]);
+          .filter((u) => u.id !== user.id); // Exclude current user
+        setRegisteredUsers(users);
       } catch (error) {
-        console.error("Error fetching user chats:", error);
+        console.error("Error fetching users:", error);
       }
     };
 
-    fetchUserChats();
+    fetchUsers();
   }, [user.id]);
 
   useEffect(() => {
@@ -523,15 +448,21 @@ function Chat({ user, onLogout, darkMode, toggleTheme }: ChatProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Handle mobile menu button click
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
   return (
     <div className="flex h-screen">
-      {/* Sidebar */}
+      {/* Sidebar - always visible on desktop, conditionally on mobile */}
       <div
         className={`${
           isMobileMenuOpen ? "block" : "hidden"
-        } md:block md:w-1/3 lg:w-1/4 ${
+        } md:block fixed md:static inset-0 z-30 md:z-auto md:w-1/3 lg:w-1/4 ${
           darkMode ? "bg-[#636363]" : "bg-[#DBDBDB]"
         } border-r ${darkMode ? "border-gray-700" : "border-gray-300"}`}
+        style={{ height: "100vh", overflowY: "auto" }}
       >
         <Sidebar
           user={user}
@@ -549,7 +480,7 @@ function Chat({ user, onLogout, darkMode, toggleTheme }: ChatProps) {
       <div
         className={`flex-1 flex flex-col ${
           darkMode ? "bg-[#4C4C4C]" : "bg-white"
-        }`}
+        } ${isMobileMenuOpen ? "hidden md:flex" : "flex"}`}
       >
         {activeChat ? (
           <>
@@ -565,7 +496,7 @@ function Chat({ user, onLogout, darkMode, toggleTheme }: ChatProps) {
                   unread: 0,
                 }
               }
-              toggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              toggleMobileMenu={toggleMobileMenu}
               darkMode={darkMode}
               onSearchMessage={searchMessages}
               isSearching={isSearching}
@@ -588,17 +519,53 @@ function Chat({ user, onLogout, darkMode, toggleTheme }: ChatProps) {
             <MessageInput onSendMessage={sendMessage} darkMode={darkMode} />
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center p-8">
-              <div className="text-6xl mb-4">👋</div>
-              <h2 className="text-2xl font-semibold mb-2">
-                Welcome to ChatSphere
-              </h2>
-              <p className="text-gray-500">
-                Select a conversation to start messaging
-              </p>
+          <>
+            {/* Mobile welcome screen with visible sidebar toggle */}
+            <div className="md:hidden p-4 flex items-center border-b">
+              <button
+                className="p-2 rounded-full hover:bg-gray-200"
+                onClick={toggleMobileMenu}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="3" y1="12" x2="21" y2="12"></line>
+                  <line x1="3" y1="6" x2="21" y2="6"></line>
+                  <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+              </button>
+              <h1 className="ml-4 font-semibold text-xl">ChatSphere</h1>
             </div>
-          </div>
+
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center p-8">
+                <div className="text-6xl mb-4">👋</div>
+                <h2 className="text-2xl font-semibold mb-2">
+                  Welcome to ChatSphere
+                </h2>
+                <p
+                  className={`${darkMode ? "text-gray-300" : "text-gray-500"}`}
+                >
+                  Select a conversation to start messaging
+                </p>
+                {/* Mobile-only button to show sidebar */}
+                <button
+                  className="md:hidden mt-6 px-6 py-2 bg-blue-500 text-white rounded-full"
+                  onClick={() => setIsMobileMenuOpen(true)}
+                >
+                  View Contacts
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </div>

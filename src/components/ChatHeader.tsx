@@ -136,13 +136,14 @@ function ChatHeader({
     >
       <div className="flex items-center">
         <button
-          className="md:hidden mr-3 p-1 rounded-full hover:bg-gray-200"
+          className="p-2 rounded-full hover:bg-gray-200"
           onClick={toggleMobileMenu}
+          aria-label="Toggle sidebar"
         >
-          <FaBars />
+          <FaBars className={darkMode ? "text-gray-300" : "text-gray-600"} />
         </button>
 
-        <div className="relative mr-3">
+        <div className="relative ml-2 mr-3">
           <img
             src={
               contact.avatar ||
@@ -157,12 +158,20 @@ function ChatHeader({
         </div>
 
         <div>
-          <div className="font-semibold">
+          <div
+            className={`font-semibold ${
+              darkMode ? "text-white" : "text-gray-800"
+            }`}
+          >
             {contact.name || "Unknown Contact"}
           </div>
           <div
             className={`text-xs ${
-              isContactOnline() ? "text-green-500" : "text-gray-500"
+              isContactOnline()
+                ? "text-green-500"
+                : darkMode
+                ? "text-gray-300"
+                : "text-gray-500"
             }`}
           >
             {getStatusDisplay()}
